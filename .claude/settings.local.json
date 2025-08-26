@@ -10,7 +10,8 @@
       "Bash(mkdir:*)",
       "Bash(npm test)",
       "Bash(npm run test:coverage:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npm test:*)"
     ],
     "deny": []
   }

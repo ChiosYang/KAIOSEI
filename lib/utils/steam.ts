@@ -56,5 +56,5 @@ export function formatDateTime(timestamp: number): string {
 }
 
 export function isProfileError(profile: ProfileResult): profile is SteamApiError {
-  return "error" in profile;
+  return profile != null && typeof profile === 'object' && "error" in profile;
 }

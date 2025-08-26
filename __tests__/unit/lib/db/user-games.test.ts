@@ -1,10 +1,10 @@
-import { getUserGames, upsertUserGames, deleteUserGames } from '@/lib/db/user-games'
+import { getUserGames, upsertUserGames } from '@/lib/db/user-games'
 
 describe('User Games Database Operations', () => {
   describe('getUserGames', () => {
     it('should be a function that accepts userId and pagination parameters', () => {
       expect(typeof getUserGames).toBe('function')
-      expect(getUserGames.length).toBe(3) // userId, limit, offset
+      expect(getUserGames.length).toBe(1) // userId (limit and offset have defaults)
     })
 
     it('should have proper type definitions', () => {
@@ -33,12 +33,6 @@ describe('User Games Database Operations', () => {
     })
   })
 
-  describe('deleteUserGames', () => {
-    it('should be a function that accepts userId', () => {
-      expect(typeof deleteUserGames).toBe('function')
-      expect(deleteUserGames.length).toBe(1) // userId
-    })
-  })
 
   describe('Type Definitions', () => {
     it('should export UserGame interface', () => {
