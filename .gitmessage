@@ -1,0 +1,20 @@
+# Type(scope): short summary (max 72 chars)
+#
+# Types: feat, fix, docs, style, refactor, perf, test, chore, revert
+# Scope: optional module or file name
+#
+# Body: explain WHAT and WHY, wrapped at 72 chars.
+# - Describe motivation/context.
+# - Mention side effects or risks.
+#
+# Footer:
+# - BREAKING CHANGE: describe impact/migration steps
+# - Closes: #123
+
+Type(scope): Summary
+
+Body line 1
+Body line 2
+
+BREAKING CHANGE:
+Closes:
