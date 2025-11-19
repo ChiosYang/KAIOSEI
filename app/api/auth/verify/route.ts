@@ -102,6 +102,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      if (!password) {
+        return NextResponse.json(
+          { error: "请输入密码" },
+          { status: 400 }
+        );
+      }
+
+      if (!user[0].password_hash) {
+        return NextResponse.json(
+          { error: "该账号尚未设置密码，请通过原登录方式或重置密码后再试" },
+          { status: 400 }
+        );
+      }
+
       const isValidPassword = await bcrypt.compare(password, user[0].password_hash);
       if (!isValidPassword) {
         return NextResponse.json(
