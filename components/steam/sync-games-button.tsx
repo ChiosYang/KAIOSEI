@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Clock, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -94,9 +94,9 @@ export default function SyncGamesButton({ className }: SyncGamesButtonProps) {
   };
 
   // 初始化时获取同步状态
-  useState(() => {
+  useEffect(() => {
     fetchSyncStatus();
-  });
+  }, []);
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>

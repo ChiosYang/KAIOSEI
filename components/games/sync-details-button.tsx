@@ -13,6 +13,7 @@ interface SyncStatus {
 export function SyncDetailsButton() {
   const [isLoading, setIsLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [withEmbedding, setWithEmbedding] = useState(true);
 
   // 获取当前同步状态
   const fetchSyncStatus = async () => {
@@ -44,7 +45,8 @@ export function SyncDetailsButton() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        body: JSON.stringify({ withEmbedding })
       });
       
       const data = await response.json();
@@ -105,6 +107,19 @@ export function SyncDetailsButton() {
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             使用RAG技术分析您的游戏库，为每个游戏生成向量化表示，提供更精准的推荐。
           </p>
+          
+          <div className="flex items-center space-x-2 mb-4 text-sm text-gray-700 dark:text-gray-200">
+            <input
+              id="with-embedding"
+              type="checkbox"
+              checked={withEmbedding}
+              onChange={(e) => setWithEmbedding(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="with-embedding">
+              生成向量（用于智能推荐）。关闭则仅同步基础详情，速度更快但无法使用推荐功能。
+            </label>
+          </div>
           
           {/* 同步状态显示 */}
           {syncStatus && (

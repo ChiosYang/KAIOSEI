@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { syncUserLibrary, getSyncedGamesCount } from '@/lib/services/gamedata_service';
 import { testEmbeddingService } from '@/lib/services/embedding_service';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
     try {
         // 验证用户身份
         const session = await auth();
@@ -13,19 +13,23 @@ export async function POST() {
             }, { status: 401 });
         }
 
+        const body = await request.json().catch(() => ({}));
+        const withEmbedding = body?.withEmbedding ?? true;
         const userId = session.user.id;
         console.log(`用户 ${userId} 请求同步游戏库详情`);
 
         // 验证embedding服务是否正常
-        const isEmbeddingServiceReady = await testEmbeddingService();
-        if (!isEmbeddingServiceReady) {
-            return NextResponse.json({
-                error: "AI服务未配置正确，请检查Google AI API密钥"
-            }, { status: 500 });
+        if (withEmbedding) {
+            const isEmbeddingServiceReady = await testEmbeddingService();
+            if (!isEmbeddingServiceReady) {
+                return NextResponse.json({
+                    error: "AI服务未配置正确，请检查Google AI API密钥"
+                }, { status: 500 });
+            }
         }
 
         // 异步执行同步任务，立即返回响应避免前端超时
-        syncUserLibrary(userId)
+        syncUserLibrary(userId, { withEmbedding })
             .then(result => {
                 console.log(`用户 ${userId} 游戏库同步完成:`, result);
             })
@@ -44,6 +48,7 @@ export async function POST() {
                 estimatedTime: "根据游戏数量可能需要5-30分钟",
                 status: "running"
             },
+            options: { withEmbedding },
             timestamp: new Date().toISOString()
         });
 

@@ -44,7 +44,11 @@ function buildEmbeddingText(details: GameDetails): string {
 }
 
 // 同步单个游戏的详情和embedding
-export async function syncAndEmbedGame(appId: number): Promise<void> {
+export async function syncAndEmbedGame(
+  appId: number,
+  options: { withEmbedding?: boolean } = {}
+): Promise<void> {
+  const { withEmbedding = true } = options;
   log.info('开始同步游戏', { appId });
   
   try {
@@ -59,14 +63,17 @@ export async function syncAndEmbedGame(appId: number): Promise<void> {
     const textToEmbed = buildEmbeddingText(details);
     log.debug('为游戏生成embedding文本', { appId, textPreview: textToEmbed.substring(0, 100) });
     
-    // 生成向量
-    const vector = await embedSingleText(textToEmbed);
-    log.debug('为游戏生成向量成功', { appId, vectorDimension: vector.length });
-
-    // 将向量转换为PostgreSQL格式
-    const vectorString = `[${vector.join(',')}]`;
+    let vectorString: string | null = null;
+    if (withEmbedding) {
+      const vector = await embedSingleText(textToEmbed);
+      log.debug('为游戏生成向量成功', { appId, vectorDimension: vector.length });
+      vectorString = `[${vector.join(',')}]`;
+    } else {
+      log.info('跳过生成embedding，仅同步游戏详情', { appId });
+    }
 
     // 存储到数据库
+    const embeddingValue = vectorString || null;
     await sql`
         INSERT INTO game_details (
             app_id, name, description, short_description, genres, tags,
@@ -84,7 +91,7 @@ export async function syncAndEmbedGame(appId: number): Promise<void> {
             ${details.metacritic?.score || null}, 
             ${details.release_date?.date || null},
             ${details.header_image || null}, 
-            ${vectorString}::vector
+            CAST(${embeddingValue} AS vector)
         )
         ON CONFLICT (app_id) DO UPDATE SET
             name = EXCLUDED.name,
@@ -97,7 +104,7 @@ export async function syncAndEmbedGame(appId: number): Promise<void> {
             metacritic_score = EXCLUDED.metacritic_score,
             release_date = EXCLUDED.release_date,
             header_image = EXCLUDED.header_image,
-            embedding = EXCLUDED.embedding,
+            embedding = COALESCE(EXCLUDED.embedding, game_details.embedding),
             last_updated = NOW()
     `;
     
@@ -110,11 +117,16 @@ export async function syncAndEmbedGame(appId: number): Promise<void> {
 }
 
 // 同步用户整个游戏库
-export async function syncUserLibrary(userId: string): Promise<{
+export async function syncUserLibrary(
+  userId: string,
+  options: { withEmbedding?: boolean } = {}
+): Promise<{
   success: number;
   failed: number;
   total: number;
 }> {
+  const withEmbedding = options.withEmbedding ?? true;
+
   log.info('开始同步用户游戏库', { userId });
   
   try {
@@ -142,7 +154,7 @@ export async function syncUserLibrary(userId: string): Promise<{
       // 并行处理当前批次
       const batchPromises = batch.map(async (game) => {
         try {
-          await syncAndEmbedGame(game.appId);
+          await syncAndEmbedGame(game.appId, { withEmbedding });
           successCount++;
           return { appId: game.appId, success: true };
         } catch (error) {
