@@ -27,6 +27,8 @@ interface GameDetails {
   header_image?: string;
 }
 
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24小时
+
 // 构建用于embedding的文本
 function buildEmbeddingText(details: GameDetails): string {
   const genres = details.genres?.map((g: GenreItem) => g.description).join(', ') || '未知';
@@ -49,9 +51,22 @@ export async function syncAndEmbedGame(
   options: { withEmbedding?: boolean } = {}
 ): Promise<void> {
   const { withEmbedding = true } = options;
-  log.info('开始同步游戏', { appId });
+  log.debug('开始同步游戏', { appId });
   
   try {
+    // 如果已有较新的数据则跳过
+    const existing = await sql`
+      SELECT last_updated 
+      FROM game_details 
+      WHERE app_id = ${appId}
+      LIMIT 1
+    `;
+    const lastUpdated = existing[0]?.last_updated ? new Date(existing[0].last_updated) : null;
+    if (lastUpdated && Date.now() - lastUpdated.getTime() < STALE_THRESHOLD_MS) {
+      log.debug('跳过同步，数据在24小时有效期内', { appId, lastUpdated });
+      return;
+    }
+
     // 获取游戏详情
     const details = await getGameDetails(appId.toString());
     if (!details || !details.name) {
@@ -69,7 +84,7 @@ export async function syncAndEmbedGame(
       log.debug('为游戏生成向量成功', { appId, vectorDimension: vector.length });
       vectorString = `[${vector.join(',')}]`;
     } else {
-      log.info('跳过生成embedding，仅同步游戏详情', { appId });
+      log.debug('跳过生成embedding，仅同步游戏详情', { appId });
     }
 
     // 存储到数据库
@@ -108,7 +123,7 @@ export async function syncAndEmbedGame(
             last_updated = NOW()
     `;
     
-    log.info('游戏数据存入数据库成功', { appId, gameName: details.name });
+    log.debug('游戏数据存入数据库成功', { appId, gameName: details.name });
 
   } catch (error) {
     log.error('游戏详情同步失败', error, { appId });
@@ -132,10 +147,10 @@ export async function syncUserLibrary(
   try {
     // 获取用户所有游戏
     const { games } = await getUserGames(userId, 5000, 0);
-    log.info('获取用户游戏列表', { userId, totalGames: games.length });
+    log.debug('获取用户游戏列表', { userId, totalGames: games.length });
 
     if (games.length === 0) {
-      log.warn('用户游戏库为空', { userId });
+      log.info('用户游戏库为空', { userId });
       return { success: 0, failed: 0, total: 0 };
     }
 

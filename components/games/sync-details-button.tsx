@@ -12,8 +12,10 @@ interface SyncStatus {
 
 export function SyncDetailsButton() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [withEmbedding, setWithEmbedding] = useState(true);
+  const [lastSyncedCount, setLastSyncedCount] = useState<number | null>(null);
 
   // 获取当前同步状态
   const fetchSyncStatus = async () => {
@@ -25,6 +27,16 @@ export function SyncDetailsButton() {
           syncedGamesCount: data.syncedGamesCount,
           lastCheck: data.lastCheck
         });
+        // 如果后台同步期间数量已增长，则认为同步结束
+        if (
+          isSyncing &&
+          typeof data.syncedGamesCount === 'number' &&
+          lastSyncedCount !== null &&
+          data.syncedGamesCount > lastSyncedCount
+        ) {
+          setIsSyncing(false);
+        }
+        setLastSyncedCount(data.syncedGamesCount);
       }
     } catch (error) {
       console.error('获取同步状态失败:', error);
@@ -39,6 +51,7 @@ export function SyncDetailsButton() {
   // 处理同步操作
   const handleSync = async () => {
     setIsLoading(true);
+    setIsSyncing(true);
     
     try {
       const response = await fetch('/api/games/sync-details', { 
@@ -63,6 +76,7 @@ export function SyncDetailsButton() {
             syncedGamesCount: data.details.currentSyncedCount,
             lastCheck: new Date().toISOString()
           });
+          setLastSyncedCount(data.details.currentSyncedCount);
         }
         
         // 10秒后刷新状态
@@ -104,9 +118,14 @@ export function SyncDetailsButton() {
             </h3>
           </div>
           
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
             使用RAG技术分析您的游戏库，为每个游戏生成向量化表示，提供更精准的推荐。
           </p>
+          {(isLoading || isSyncing) && (
+            <p className="text-xs text-blue-600 dark:text-blue-400 mb-4">
+              后台同步任务正在运行，请稍候...
+            </p>
+          )}
           
           <div className="flex items-center space-x-2 mb-4 text-sm text-gray-700 dark:text-gray-200">
             <input
@@ -157,12 +176,12 @@ export function SyncDetailsButton() {
         <div className="flex flex-col space-y-2 ml-4">
           <Button 
             onClick={handleSync} 
-            disabled={isLoading} 
+            disabled={isLoading || isSyncing} 
             variant="default"
             size="sm"
             className="min-w-[120px]"
           >
-            {isLoading ? (
+            {isLoading || isSyncing ? (
               <>
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                 同步中...
