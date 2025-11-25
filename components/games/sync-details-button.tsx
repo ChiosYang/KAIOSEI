@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw, Database, CheckCircle } from 'lucide-react';
 
@@ -18,7 +18,7 @@ export function SyncDetailsButton() {
   const [lastSyncedCount, setLastSyncedCount] = useState<number | null>(null);
 
   // 获取当前同步状态
-  const fetchSyncStatus = async () => {
+  const fetchSyncStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/games/sync-details');
       if (response.ok) {
@@ -41,12 +41,12 @@ export function SyncDetailsButton() {
     } catch (error) {
       console.error('获取同步状态失败:', error);
     }
-  };
+  }, [isSyncing, lastSyncedCount]);
 
   // 组件加载时获取状态
   useEffect(() => {
     fetchSyncStatus();
-  }, []);
+  }, [fetchSyncStatus]);
 
   // 处理同步操作
   const handleSync = async () => {

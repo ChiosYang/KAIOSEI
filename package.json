@@ -21,7 +21,7 @@
     "@langchain/core": "^0.3.71",
     "@langchain/google-genai": "^0.2.16",
     "@neondatabase/serverless": "^1.0.1",
-    "@notionhq/client": "^2.2.10",
+    "@notionhq/client": "^5.4.0",
     "@openrouter/ai-sdk-provider": "^0.7.3",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dropdown-menu": "^2.1.15",

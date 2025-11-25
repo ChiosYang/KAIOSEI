@@ -28,16 +28,16 @@ async function ensureProps() {
   loadEnv();
 
   const apiKey = process.env.NOTION_API_KEY;
-  const databaseId = process.env.NOTION_DATABASE_ID;
+  const dataSourceId = process.env.NOTION_DATA_SOURCE_ID;
 
-  if (!apiKey || !databaseId) {
-    throw new Error('请在 .env.local 中配置 NOTION_API_KEY 与 NOTION_DATABASE_ID');
+  if (!apiKey || !dataSourceId) {
+    throw new Error('请在 .env.local 中配置 NOTION_API_KEY 与 NOTION_DATA_SOURCE_ID');
   }
 
   const notion = new Client({ auth: apiKey });
 
-  await notion.databases.update({
-    database_id: databaseId,
+  await notion.dataSources.update({
+    data_source_id: dataSourceId,
     properties: {
       // Name 通常已存在 Title 类型，不在此覆盖
       'App ID': { number: {} },

@@ -1,5 +1,6 @@
 import { Client } from '@notionhq/client';
-import { load } from 'cheerio';
+import { BlockObjectRequest } from '@notionhq/client/build/src/api-endpoints';
+import { Element, load } from 'cheerio';
 import { sql } from '@/lib/db/connection';
 import { log } from '@/lib/utils/logger';
 
@@ -24,7 +25,12 @@ interface SyncResult {
 }
 
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
-const notion = new Client({ auth: process.env.NOTION_API_KEY });
+const NOTION_DATA_SOURCE_ID = process.env.NOTION_DATA_SOURCE_ID;
+const NOTION_VERSION = '2025-09-03';
+const notion = new Client({
+  auth: process.env.NOTION_API_KEY,
+  notionVersion: NOTION_VERSION,
+});
 const REQUEST_INTERVAL_MS = 400; // 粗略限流，约 2.5 rps
 const MAX_BLOCKS = 50;
 
@@ -32,6 +38,27 @@ function ensureNotionConfig() {
   if (!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID) {
     throw new Error('Notion 配置缺失，请设置 NOTION_API_KEY 和 NOTION_DATABASE_ID');
   }
+}
+
+let dataSourceIdMemo: string | null = NOTION_DATA_SOURCE_ID || null;
+
+async function getDataSourceId(): Promise<string> {
+  if (dataSourceIdMemo) return dataSourceIdMemo;
+  // 尝试从数据库对象推断第一个 data source
+  const db = await notion.databases.retrieve({ database_id: NOTION_DATABASE_ID as string });
+  type DataSourceSummary = { id: string; name?: string | null };
+  const dataSources = (db as { data_sources?: DataSourceSummary[] }).data_sources;
+  const candidate = dataSources?.[0]?.id;
+  if (!candidate) {
+    throw new Error(
+      '未找到可用的 Notion Data Source，请在 .env.local 中设置 NOTION_DATA_SOURCE_ID'
+    );
+  }
+  dataSourceIdMemo = candidate;
+  log.info('已自动推断 NOTION_DATA_SOURCE_ID，请写入 .env.local 以避免重复请求', {
+    dataSourceId: candidate,
+  });
+  return candidate;
 }
 
 function sleep(ms: number) {
@@ -59,7 +86,7 @@ function buildProperties(row: NotionSyncRow) {
 }
 
 function htmlToBlocks(html?: string | null) {
-  const blocks: any[] = [
+  const blocks: BlockObjectRequest[] = [
     {
       object: 'block',
       type: 'callout',
@@ -83,7 +110,7 @@ function htmlToBlocks(html?: string | null) {
   nodes.each((_, el) => {
     if (blocks.length >= MAX_BLOCKS) return false;
 
-    const tag = (el as any).tagName?.toLowerCase();
+    const tag = (el as Element).tagName?.toLowerCase();
     if (!tag) return;
 
     if (tag === 'h1' || tag === 'h2') {
@@ -160,11 +187,12 @@ export async function syncSingleGameToNotion(row: NotionSyncRow): Promise<SyncRe
       }
     : undefined;
   const children = htmlToBlocks(row.description);
+  const dataSourceId = await getDataSourceId();
 
   try {
     if (!row.notion_page_id) {
       const page = await notion.pages.create({
-        parent: { database_id: NOTION_DATABASE_ID as string },
+        parent: { data_source_id: dataSourceId },
         properties,
         cover,
         children,

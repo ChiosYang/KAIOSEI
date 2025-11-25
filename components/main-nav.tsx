@@ -85,6 +85,16 @@ export function MainNav() {
                 <NavigationMenuItem>
                   <NavigationMenuLink asChild>
                     <Link
+                      href="/notion"
+                      className={navigationMenuTriggerStyle()}
+                    >
+                      Notion
+                    </Link>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink asChild>
+                    <Link
                       href="/config"
                       className={navigationMenuTriggerStyle()}
                     >
