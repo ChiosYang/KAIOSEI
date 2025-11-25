@@ -89,3 +89,17 @@ CREATE TRIGGER IF NOT EXISTS update_user_games_updated_at
     BEFORE UPDATE ON user_games
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Notion 映射表，用于缓存 App ID ↔ Notion Page ID
+CREATE TABLE IF NOT EXISTS notion_mappings (
+    app_id INTEGER PRIMARY KEY,
+    notion_page_id TEXT NOT NULL,
+    synced_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER IF NOT EXISTS update_notion_mappings_updated_at
+    BEFORE UPDATE ON notion_mappings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

@@ -73,6 +73,41 @@ async function initDatabase() {
     await sql`CREATE INDEX IF NOT EXISTS idx_game_details_genres ON game_details(genres)`;
     console.log('✅ 文本索引已创建');
 
+    console.log('📋 创建 notion_mappings 表...');
+    await sql`
+      CREATE TABLE IF NOT EXISTS notion_mappings (
+        app_id INTEGER PRIMARY KEY,
+        notion_page_id TEXT NOT NULL,
+        synced_at TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS $$
+      BEGIN
+          NEW.updated_at = CURRENT_TIMESTAMP;
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `;
+    await sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_notion_mappings_updated_at'
+        ) THEN
+          CREATE TRIGGER update_notion_mappings_updated_at
+          BEFORE UPDATE ON notion_mappings
+          FOR EACH ROW
+          EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+      END;
+      $$;
+    `;
+    console.log('✅ notion_mappings 表已创建');
+
     console.log('🔍 验证表结构...');
     const tableInfo = await sql`
       SELECT column_name, data_type, is_nullable 
