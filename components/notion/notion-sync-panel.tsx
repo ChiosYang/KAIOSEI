@@ -21,6 +21,7 @@ export function NotionSyncPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SyncResult | null>(null);
+  const [lastSuccessAt, setLastSuccessAt] = useState<string | null>(null);
 
   const handleSync = async () => {
     setLoading(true);
@@ -43,6 +44,7 @@ export function NotionSyncPanel() {
       }
 
       setResult(data);
+      setLastSuccessAt(new Date().toISOString());
     } catch (err) {
       setError(err instanceof Error ? err.message : "发生未知错误");
     } finally {
@@ -62,11 +64,17 @@ export function NotionSyncPanel() {
               type="datetime-local"
               value={since}
               onChange={(e) => setSince(e.target.value)}
+              disabled={loading}
               className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               留空则执行全量同步；填写后仅同步该时间之后更新的记录。
             </p>
+            {lastSuccessAt && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-300 mt-1">
+                上次成功时间：{new Date(lastSuccessAt).toLocaleString()}
+              </p>
+            )}
           </div>
 
           <button
@@ -74,7 +82,33 @@ export function NotionSyncPanel() {
             disabled={loading}
             className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60"
           >
-            {loading ? "同步中..." : "立即同步 Notion"}
+            {loading ? (
+              <>
+                <svg
+                  className="mr-2 h-4 w-4 animate-spin text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  ></path>
+                </svg>
+                同步中...
+              </>
+            ) : (
+              "立即同步 Notion"
+            )}
           </button>
 
           {error && (
@@ -115,8 +149,8 @@ export function NotionSyncPanel() {
       <div className="text-sm text-gray-600 dark:text-gray-400">
         <p>提示：</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>需要在环境变量中配置 `NOTION_API_KEY`、`NOTION_DATABASE_ID`、`NOTION_DATA_SOURCE_ID`。</li>
-          <li>若缺少数据源 ID，代码会尝试自动推断首个 Data Source，但建议手动设置以避免写入错误库。</li>
+          <li>需要在环境变量中配置 `NOTION_API_KEY`。</li>
+          <li>若缺少数据源 ID，代码会尝试自动创建，但建议手动设置以避免写入错误库。</li>
           <li>同步频繁时请注意 Notion API 速率限制。</li>
         </ul>
       </div>
