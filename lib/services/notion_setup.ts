@@ -13,22 +13,11 @@ interface NotionSetupResult {
   persisted: boolean;
 }
 
-type NotionPropertyMap = Record<string, { type: string }>;
-
 type SimplePropertyConfig =
   | { title: Record<string, never> }
   | { number: Record<string, never> }
   | { date: Record<string, never> }
   | { url: Record<string, never> };
-
-const REQUIRED_PROPERTIES: NotionPropertyMap = {
-  Name: { type: 'title' },
-  'App ID': { type: 'number' },
-  Playtime: { type: 'number' },
-  'Last Played': { type: 'date' },
-  'Steam Link': { type: 'url' },
-  'Synced At': { type: 'date' },
-};
 
 const notion = new Client({
   auth: process.env.NOTION_API_KEY,
@@ -103,22 +92,6 @@ async function createDatabaseWithSchema(pageId: string) {
   return { databaseId: db.id, dataSourceId };
 }
 
-async function ensureDatabaseSchema(databaseId: string) {
-  const db = await notion.databases.retrieve({ database_id: databaseId });
-  const existingProps = (db as { properties?: Record<string, { type: string }> }).properties || {};
-
-  const missingEntries = Object.entries(REQUIRED_PROPERTIES).filter(
-    ([key, def]) => existingProps[key]?.type !== def.type
-  );
-
-  if (missingEntries.length === 0) return;
-
-  log.warn('Notion 数据库缺少必需列，请手动在 Notion UI 补齐或删除 NOTION_DATABASE_ID 以触发自动重建', {
-    databaseId,
-    missing: missingEntries.map(([k]) => k),
-  });
-}
-
 async function getDataSourceFromExistingDatabase(databaseId: string) {
   const db = await notion.databases.retrieve({ database_id: databaseId });
   const dataSources = (db as { data_sources?: { id: string }[] }).data_sources;
@@ -137,7 +110,6 @@ export async function ensureNotionSetup(): Promise<NotionSetupResult> {
   const autoProvision = process.env.NOTION_AUTO_PROVISION !== 'false';
 
   if (databaseId && dataSourceId) {
-    await ensureDatabaseSchema(databaseId);
     setupMemo = { databaseId, dataSourceId, created, persisted };
     return setupMemo;
   }
@@ -150,7 +122,6 @@ export async function ensureNotionSetup(): Promise<NotionSetupResult> {
     } else {
       log.warn('未能在现有数据库中找到 data source，将仅使用 database_id 进行写入');
     }
-    await ensureDatabaseSchema(databaseId);
     setupMemo = { databaseId, dataSourceId: fetched || null, created, persisted };
     return setupMemo;
   }
@@ -180,7 +151,6 @@ export async function ensureNotionSetup(): Promise<NotionSetupResult> {
     persisted = (await persistEnvValue('NOTION_DATA_SOURCE_ID', dataSourceId)) || persisted;
   }
 
-  await ensureDatabaseSchema(databaseId);
   setupMemo = { databaseId, dataSourceId: dataSourceId || null, created, persisted };
   return setupMemo;
 }
