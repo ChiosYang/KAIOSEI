@@ -149,11 +149,16 @@ function isUpToDate(row: NotionSyncRow) {
   return userFresh && detailFresh;
 }
 
-async function isPageInTargetDatabase(pageId: string, databaseId: string) {
+async function isPageInTargetDatabase(pageId: string, databaseId: string, dataSourceId: string | null) {
   try {
     const page = await notion.pages.retrieve({ page_id: pageId });
-    const parent = (page as { parent?: { type?: string; database_id?: string } }).parent;
-    return parent?.type === 'database_id' && parent.database_id === databaseId;
+    const parent = (page as { parent?: { type?: string; database_id?: string; data_source_id?: string } }).parent;
+
+    if (parent?.type === 'database_id' && parent.database_id === databaseId) return true;
+    if (parent?.type === 'data_source_id' && dataSourceId && parent.data_source_id === dataSourceId)
+      return true;
+
+    return false;
   } catch (error: unknown) {
     // 404 / object_not_found 视为不在目标库，其他错误仅记录后返回 false 以触发重建
     const status = (error as { status?: number; code?: number })?.status ||
@@ -165,15 +170,72 @@ async function isPageInTargetDatabase(pageId: string, databaseId: string) {
   }
 }
 
+async function findPageByAppId(
+  dataSourceId: string | null,
+  databaseId: string,
+  appId: number
+): Promise<string | null> {
+  if (!dataSourceId) return null;
+  try {
+    const res = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      filter: {
+        property: 'App ID',
+        number: { equals: appId },
+      },
+      page_size: 1,
+    });
+    const pageId = res.results?.[0]?.id;
+    return pageId ?? null;
+  } catch (error) {
+    log.warn('按 App ID 查询 Notion 失败，将创建新页面', { error, appId, databaseId, dataSourceId });
+    return null;
+  }
+}
+
+async function backfillMissingMappings(
+  userId: string,
+  dataSourceId: string | null,
+  databaseId: string
+) {
+  if (!dataSourceId) return; // 只有 data source 可查询时才回填
+
+  const missingRows = (await sql`
+    SELECT ug.app_id
+    FROM user_games ug
+    LEFT JOIN notion_mappings nm ON ug.app_id = nm.app_id
+    WHERE ug.user_id = ${userId} AND nm.notion_page_id IS NULL
+    LIMIT 50
+  `) as { app_id: number }[];
+
+  for (const row of missingRows) {
+    const pageId = await findPageByAppId(dataSourceId, databaseId, row.app_id);
+    if (pageId) {
+      await upsertMapping(row.app_id, pageId);
+    }
+    await sleep(REQUEST_INTERVAL_MS);
+  }
+}
+
 export async function syncSingleGameToNotion(row: NotionSyncRow): Promise<SyncResult> {
-  const { databaseId } = await ensureNotionSetup();
+  const { databaseId, dataSourceId } = await ensureNotionSetup();
 
   // 若映射指向其他数据库或页面不存在，则清空以触发重建
   if (row.notion_page_id) {
-    const valid = await isPageInTargetDatabase(row.notion_page_id, databaseId);
+    const valid = await isPageInTargetDatabase(row.notion_page_id, databaseId, dataSourceId);
     if (!valid) {
       row.notion_page_id = null;
       row.synced_at = null;
+    }
+  }
+
+  // 若本地映射缺失，尝试通过 Notion 数据库的 App ID 反查并回填，避免重复创建
+  if (!row.notion_page_id) {
+    const existingPageId = await findPageByAppId(dataSourceId, databaseId, row.app_id);
+    if (existingPageId) {
+      row.notion_page_id = existingPageId;
+      row.synced_at = null; // 强制写入最新数据
+      await upsertMapping(row.app_id, existingPageId);
     }
   }
 
@@ -218,7 +280,8 @@ export async function syncSingleGameToNotion(row: NotionSyncRow): Promise<SyncRe
 }
 
 export async function syncNotionForUser(userId: string, options: { since?: Date } = {}) {
-  await ensureNotionSetup();
+  const { databaseId, dataSourceId } = await ensureNotionSetup();
+  await backfillMissingMappings(userId, dataSourceId, databaseId);
 
   const since = options.since ? options.since.toISOString() : null;
   const rows = (await sql`
